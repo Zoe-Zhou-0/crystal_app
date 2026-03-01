@@ -18,6 +18,7 @@ project.private.config.json
 # Env secrets
 .env
 .env.*
+!.env.example
 
 # Python venv
 .venv/
