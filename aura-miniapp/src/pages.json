@@ -1,0 +1,54 @@
+{
+  "pages": [
+    {
+      "path": "pages/index/index",
+      "style": {
+        "navigationBarTitleText": "Aura"
+      }
+    },
+    {
+      "path": "pages/gallery/gallery",
+      "style": {
+        "navigationBarTitleText": "图鉴"
+      }
+    },
+    {
+      "path": "pages/gallery/detail",
+      "style": {
+        "navigationBarTitleText": "水晶详情"
+      }
+    },
+    {
+      "path": "pages/mine/mine",
+      "style": {
+        "navigationBarTitleText": "晶匣"
+      }
+    }
+  ],
+  "globalStyle": {
+    "navigationBarTextStyle": "black",
+    "navigationBarTitleText": "Aura",
+    "navigationBarBackgroundColor": "#FDFCF8",
+    "backgroundColor": "#FDFCF8"
+  },
+  "tabBar": {
+    "color": "#999999",
+    "selectedColor": "#B693D6",
+    "backgroundColor": "#FDFCF8",
+    "borderStyle": "white",
+    "list": [
+      {
+        "pagePath": "pages/index/index",
+        "text": "聊愈"
+      },
+      {
+        "pagePath": "pages/gallery/gallery",
+        "text": "图鉴"
+      },
+      {
+        "pagePath": "pages/mine/mine",
+        "text": "晶匣"
+      }
+    ]
+  }
+}
