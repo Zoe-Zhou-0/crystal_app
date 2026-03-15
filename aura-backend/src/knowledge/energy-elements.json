@@ -1,0 +1,79 @@
+{
+  "energy_elements": {
+    "wood_木": {
+      "core_trait": "生发与边界 (Growth & Boundaries)",
+      "excess_symptoms": [
+        "过度内耗",
+        "钻牛角尖",
+        "对细节有强迫症",
+        "神经紧绷难以放松"
+      ],
+      "lacking_symptoms": [
+        "缺乏内在驱动力",
+        "难以拒绝他人（边界感弱）",
+        "感到生命力停滞"
+      ],
+      "modern_metaphor": "你像一株急于向上生长的植物，过旺时容易被风折断，过弱时则难以破土。"
+    },
+    "fire_火": {
+      "core_trait": "热情与显化 (Passion & Visibility)",
+      "excess_symptoms": [
+        "情绪大起大落",
+        "容易急躁/不耐烦",
+        "精力透支（Burnout）",
+        "注意力难以集中"
+      ],
+      "lacking_symptoms": [
+        "感到生活枯燥无味",
+        "缺乏表达欲",
+        "难以在人群中展现真实的自我"
+      ],
+      "modern_metaphor": "你是生命力的火种，过旺时容易灼伤自己，过弱时则觉得世界缺乏色彩。"
+    },
+    "earth_土": {
+      "core_trait": "承载与安全感 (Grounding & Security)",
+      "excess_symptoms": [
+        "思维固执",
+        "过度囤积或沉溺过去",
+        "行动力迟缓",
+        "对变化感到极度恐惧"
+      ],
+      "lacking_symptoms": [
+        "缺乏底层安全感",
+        "像无根之木般漂浮",
+        "难以将想法落地执行"
+      ],
+      "modern_metaphor": "你是万物生长的土壤，过旺时容易板结僵硬，过弱时则无法承载生命的重量。"
+    },
+    "metal_金": {
+      "core_trait": "秩序与决断 (Structure & Clarity)",
+      "excess_symptoms": [
+        "过度理性而显得冷漠",
+        "对他人的要求过于严苛",
+        "完美主义",
+        "难以表达柔软的情感"
+      ],
+      "lacking_symptoms": [
+        "优柔寡断",
+        "执行力差",
+        "在关键时刻缺乏挥剑斩断乱麻的勇气"
+      ],
+      "modern_metaphor": "你是锻造秩序的利刃，过旺时容易割伤亲近的人，过弱时则斩不断生活的乱麻。"
+    },
+    "water_水": {
+      "core_trait": "流动与共情 (Flow & Empathy)",
+      "excess_symptoms": [
+        "情绪极度敏感",
+        "容易陷入悲观或恐惧",
+        "共情疲劳",
+        "边界感被他人侵入"
+      ],
+      "lacking_symptoms": [
+        "难以觉察自己和他人的情绪",
+        "思维僵化",
+        "在人际关系中显得干瘪"
+      ],
+      "modern_metaphor": "你是感知世界的河流，过旺时容易泛滥成灾淹没自我，过弱时则让心灵的土地干涸。"
+    }
+  }
+}

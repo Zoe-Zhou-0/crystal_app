@@ -1,9 +1,41 @@
 {
   "pages": [
     {
+      "path": "pages/splash/splash",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": ""
+      }
+    },
+    {
       "path": "pages/index/index",
       "style": {
         "navigationBarTitleText": "Aura"
+      }
+    },
+    {
+      "path": "pages/init/init",
+      "style": {
+        "navigationStyle": "custom",
+        "navigationBarTitleText": "校准能量场"
+      }
+    },
+    {
+      "path": "pages/onboarding/onboarding",
+      "style": {
+        "navigationBarTitleText": "初次测算"
+      }
+    },
+    {
+      "path": "pages/fortune/fortune",
+      "style": {
+        "navigationBarTitleText": "今日运势"
+      }
+    },
+    {
+      "path": "pages/fengshui/fengshui",
+      "style": {
+        "navigationBarTitleText": "家宅风水"
       }
     },
     {
@@ -26,6 +58,7 @@
     }
   ],
   "globalStyle": {
+    "navigationStyle": "custom",
     "navigationBarTextStyle": "black",
     "navigationBarTitleText": "Aura",
     "navigationBarBackgroundColor": "#FDFCF8",
@@ -34,20 +67,27 @@
   "tabBar": {
     "color": "#999999",
     "selectedColor": "#B693D6",
-    "backgroundColor": "#FDFCF8",
+    "backgroundColor": "#FFFFFF",
     "borderStyle": "white",
+    "fontSize": "11px",
     "list": [
       {
         "pagePath": "pages/index/index",
-        "text": "聊愈"
+        "text": "聊愈",
+        "iconPath": "static/tabbar/chat.png",
+        "selectedIconPath": "static/tabbar/chat-active.png"
       },
       {
         "pagePath": "pages/gallery/gallery",
-        "text": "图鉴"
+        "text": "晶鉴",
+        "iconPath": "static/tabbar/gallery.png",
+        "selectedIconPath": "static/tabbar/gallery-active.png"
       },
       {
         "pagePath": "pages/mine/mine",
-        "text": "晶匣"
+        "text": "晶匣",
+        "iconPath": "static/tabbar/mine.png",
+        "selectedIconPath": "static/tabbar/mine-active.png"
       }
     ]
   }
