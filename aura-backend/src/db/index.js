@@ -1,15 +1,16 @@
 import mysql from "mysql2/promise";
 
-const host = (process.env.MYSQL_HOST || "localhost").trim();
-const port = Number(process.env.MYSQL_PORT || 3306);
-const user = (process.env.MYSQL_USER || "root").trim();
-const password = (process.env.MYSQL_PASSWORD || "").trim();
-const database = (process.env.MYSQL_DATABASE || "aura_app").trim();
-
 let pool = null;
 
 export function getPool() {
   if (!pool) {
+    // 延迟读取环境变量，确保 dotenv.config() 已执行
+    const host = (process.env.MYSQL_HOST || "localhost").trim();
+    const port = Number(process.env.MYSQL_PORT || 3306);
+    const user = (process.env.MYSQL_USER || "root").trim();
+    const password = (process.env.MYSQL_PASSWORD || "").trim();
+    const database = (process.env.MYSQL_DATABASE || "aura_app").trim();
+
     if (!password && process.env.NODE_ENV !== "test") {
       console.warn("[aura-backend] MYSQL_PASSWORD not set. DB APIs will fail.");
     }
@@ -30,15 +31,99 @@ export function getPool() {
 
 export async function ensureUser(deviceId) {
   const db = getPool();
-  const [rows] = await db.execute(
-    "INSERT INTO users (device_id) VALUES (?) ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
+  await db.execute(
+    "INSERT INTO users (device_id, login_provider) VALUES (?, 'anonymous') ON DUPLICATE KEY UPDATE id=LAST_INSERT_ID(id)",
     [deviceId],
   );
-  const [[row]] = await db.execute(
-    "SELECT id FROM users WHERE device_id = ? LIMIT 1",
-    [deviceId],
-  );
+  const row = await getUserByDeviceId(deviceId);
   return row?.id ?? null;
+}
+
+export async function getUserById(userId) {
+  const db = getPool();
+  const [rows] = await db.execute(
+    `SELECT id, device_id, openid, display_name, avatar_url, login_provider, is_wechat_bound
+     FROM users WHERE id = ? LIMIT 1`,
+    [userId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function getUserByDeviceId(deviceId) {
+  const db = getPool();
+  const [rows] = await db.execute(
+    `SELECT id, device_id, openid, display_name, avatar_url, login_provider, is_wechat_bound
+     FROM users WHERE device_id = ? LIMIT 1`,
+    [deviceId],
+  );
+  return rows[0] ?? null;
+}
+
+export async function getUserByOpenid(openid) {
+  const db = getPool();
+  const [rows] = await db.execute(
+    `SELECT id, device_id, openid, display_name, avatar_url, login_provider, is_wechat_bound
+     FROM users WHERE openid = ? LIMIT 1`,
+    [openid],
+  );
+  return rows[0] ?? null;
+}
+
+export async function bindWeChatIdentity({ deviceId, openid, displayName, avatarUrl }) {
+  const db = getPool();
+  const safeName = (displayName ?? "").toString().trim().slice(0, 64);
+  const safeAvatar = (avatarUrl ?? "").toString().trim().slice(0, 255);
+  const existing = await getUserByOpenid(openid);
+  if (existing?.id) {
+    await db.execute(
+      `UPDATE users
+       SET display_name = COALESCE(NULLIF(?, ''), display_name),
+           avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
+           login_provider = 'wechat',
+           is_wechat_bound = 1
+       WHERE id = ?`,
+      [safeName, safeAvatar, existing.id],
+    );
+    return existing.id;
+  }
+
+  const userId = await ensureUser(deviceId);
+  await db.execute(
+    `UPDATE users
+     SET openid = ?,
+         display_name = COALESCE(NULLIF(?, ''), display_name),
+         avatar_url = COALESCE(NULLIF(?, ''), avatar_url),
+         login_provider = 'wechat',
+         is_wechat_bound = 1
+     WHERE id = ?`,
+    [openid, safeName, safeAvatar, userId],
+  );
+  return userId;
+}
+
+export async function saveUserProfile(userId, profile) {
+  const db = getPool();
+  const displayName = (profile?.displayName ?? "").toString().trim().slice(0, 64);
+  const avatarUrl = (profile?.avatarUrl ?? "").toString().trim().slice(0, 255);
+  await db.execute(
+    `UPDATE users
+     SET display_name = COALESCE(NULLIF(?, ''), display_name),
+         avatar_url = COALESCE(NULLIF(?, ''), avatar_url)
+     WHERE id = ?`,
+    [displayName, avatarUrl, userId],
+  );
+}
+
+export async function getUserProfile(userId) {
+  const row = await getUserById(userId);
+  if (!row) return null;
+  return {
+    id: row.id,
+    displayName: row.display_name || "",
+    avatarUrl: row.avatar_url || "",
+    loginProvider: row.login_provider || "anonymous",
+    isWechatBound: !!row.is_wechat_bound,
+  };
 }
 
 export async function saveProfile(userId, profile) {

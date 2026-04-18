@@ -176,6 +176,14 @@ function start() {
     method: "POST",
     header: { "content-type": "application/json", ...getDataApiHeaders() },
     data: { profile },
+    success: (res) => {
+      if ((res.statusCode ?? 0) !== 200) {
+        console.warn("[onboarding] /api/profile sync failed, statusCode:", res.statusCode);
+      }
+    },
+    fail: (err) => {
+      console.warn("[onboarding] /api/profile request failed:", err?.errMsg || err);
+    },
   });
 
   const timeText = profile.birthTime ? profile.birthTime : "不确定（请按常见时辰推断，并提醒我后续可补充）";

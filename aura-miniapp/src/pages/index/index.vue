@@ -105,7 +105,16 @@
 
 <script setup lang="ts">
 import { nextTick, ref } from "vue";
-import { onLoad, onShow } from "@dcloudio/uni-app";
+import { onLoad, onShow, onShareAppMessage, onShareTimeline } from "@dcloudio/uni-app";
+
+onShareAppMessage(() => ({
+  title: "Aura · 水晶疗愈与全息能量",
+  path: "pages/splash/splash",
+}));
+
+onShareTimeline(() => ({
+  title: "Aura · 水晶疗愈与全息能量",
+}));
 import mindfulnessCards from "@/data/mindfulnessCards.json";
 import { apiUrl, getDataApiHeaders } from "@/utils/api";
 import AuraTabBar from "@/components/AuraTabBar.vue";
@@ -473,6 +482,18 @@ function send(text?: string) {
 function onQuick(label: string) {
   if (label === "五行排盘") {
     uni.navigateTo({ url: "/pages/onboarding/onboarding?from=quick" });
+    return;
+  }
+  if (label === "能量图谱") {
+    const baziRaw = uni.getStorageSync("baziResult");
+    const hasBazi = !!baziRaw && !!(
+      typeof baziRaw === "string" ? (() => { try { return JSON.parse(baziRaw)?.dominant; } catch { return false; } })() : baziRaw?.dominant
+    );
+    if (hasBazi) {
+      uni.switchTab({ url: "/pages/mine/mine" });
+    } else {
+      uni.navigateTo({ url: "/pages/onboarding/onboarding?from=energy" });
+    }
     return;
   }
   send(`我想看看${label}。`);

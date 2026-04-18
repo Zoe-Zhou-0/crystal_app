@@ -1,9 +1,13 @@
 import cors from "cors";
 import dotenv from "dotenv";
 import express from "express";
+import multer from "multer";
 import OpenAI from "openai";
-import { readFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync } from "node:fs";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import * as db from "./db/index.js";
+import { retrieve, isAvailable as ragAvailable } from "./knowledge/retriever.js";
 
 dotenv.config({ path: new URL("../../.env", import.meta.url) });
 
@@ -12,7 +16,8 @@ const host = (process.env.HOST || "0.0.0.0").trim();
 const baseURL = (process.env.MOONSHOT_BASE_URL || "https://api.moonshot.cn/v1").trim();
 const model = (process.env.MOONSHOT_MODEL || "kimi-k2.5").trim();
 const apiKey = (process.env.MOONSHOT_API_KEY || "").trim();
-
+const wechatAppId = (process.env.WECHAT_APP_ID || "").trim();
+const wechatAppSecret = (process.env.WECHAT_APP_SECRET || "").trim();
 if (!apiKey) {
   console.warn("[aura-backend] MOONSHOT_API_KEY is not set. /api/chat will return 500.");
 }
@@ -114,13 +119,11 @@ const energyElementsKnowledge = loadKnowledgeJson("./knowledge/energy-elements.j
 const geographicEnergyWeightsKnowledge = loadKnowledgeJson("./knowledge/geographic-energy-weights.json");
 const crystalPrescriptionsKnowledge = loadKnowledgeJson("./knowledge/crystal-prescriptions.json");
 
-function buildBaziSystemPrompt() {
+function buildFullKnowledgeBlock() {
   const energyElements = energyElementsKnowledge?.energy_elements || {};
   const geographicEnergyWeights = geographicEnergyWeightsKnowledge?.geographic_energy_weights || {};
   const crystalPrescriptions = crystalPrescriptionsKnowledge?.crystal_prescriptions || {};
   return [
-    BAZI_SYSTEM_PROMPT,
-    "",
     "# KnowledgeBase",
     "<energy_elements>",
     JSON.stringify(energyElements, null, 2),
@@ -136,7 +139,45 @@ function buildBaziSystemPrompt() {
   ].join("\n");
 }
 
+async function buildBaziSystemPrompt(userMessage) {
+  if (!ragAvailable()) {
+    return [BAZI_SYSTEM_PROMPT, "", buildFullKnowledgeBlock()].join("\n");
+  }
+
+  try {
+    const hits = await retrieve(userMessage, 5);
+    const ragBlock = [
+      "# RetrievedKnowledge (by RAG)",
+      ...hits.map((h) => `<chunk id="${h.id}" score="${h.score.toFixed(3)}">\n${h.text}\n</chunk>`),
+    ].join("\n\n");
+    console.log(`[rag] retrieved ${hits.length} chunks for query (top score=${hits[0]?.score.toFixed(3)})`);
+    return [BAZI_SYSTEM_PROMPT, "", ragBlock].join("\n");
+  } catch (err) {
+    console.warn("[rag] retrieve failed, falling back to full injection:", err?.message || err);
+    return [BAZI_SYSTEM_PROMPT, "", buildFullKnowledgeBlock()].join("\n");
+  }
+}
+
+const uploadDir = fileURLToPath(new URL("../uploads", import.meta.url));
+const staticDir = fileURLToPath(new URL("../../static", import.meta.url));
+if (!existsSync(uploadDir)) {
+  mkdirSync(uploadDir, { recursive: true });
+}
+if (!existsSync(staticDir)) {
+  mkdirSync(staticDir, { recursive: true });
+}
+
+const storage = multer.diskStorage({
+  destination: (_req, _file, cb) => cb(null, uploadDir),
+  filename: (_req, file, cb) => {
+    const ext = path.extname(file.originalname || "") || ".png";
+    cb(null, `${Date.now()}-${Math.random().toString(36).slice(2, 10)}${ext}`);
+  },
+});
+const upload = multer({ storage });
+
 const app = express();
+app.set("trust proxy", 1);
 app.use(express.json({ limit: "1mb" }));
 app.use(
   cors({
@@ -144,12 +185,29 @@ app.use(
     credentials: false,
   }),
 );
+app.use("/static", express.static(staticDir));
+app.use("/uploads", express.static(uploadDir));
 
 function getDeviceId(req) {
   return (req.headers["x-device-id"] ?? req.body?.device_id ?? "").toString().trim();
 }
 
+function getExplicitUserId(req) {
+  const raw = (req.headers["x-user-id"] ?? req.body?.user_id ?? "").toString().trim();
+  const userId = Number(raw);
+  return Number.isInteger(userId) && userId > 0 ? userId : null;
+}
+
 async function resolveUserId(req, res) {
+  const explicitUserId = getExplicitUserId(req);
+  if (explicitUserId) {
+    try {
+      const user = await db.getUserById(explicitUserId);
+      if (user?.id) return user.id;
+    } catch (err) {
+      console.error("[aura-backend] DB resolve explicit user:", err);
+    }
+  }
   const deviceId = getDeviceId(req);
   if (!deviceId) {
     res.status(400).json({ error: "x-device-id header required", message: "请传入设备标识" });
@@ -167,6 +225,98 @@ async function resolveUserId(req, res) {
 
 app.get("/health", (_req, res) => {
   res.json({ ok: true, service: "aura-backend", model, baseURL });
+});
+
+app.post("/api/auth/wechat-login", async (req, res) => {
+  try {
+    const deviceId = getDeviceId(req);
+    const code = (req.body?.code ?? "").toString().trim();
+    const displayName = (req.body?.displayName ?? "").toString().trim();
+    const avatarUrl = (req.body?.avatarUrl ?? "").toString().trim();
+
+    if (!deviceId) {
+      return res.status(400).json({ error: "x-device-id header required", message: "缺少设备标识" });
+    }
+    if (!code) {
+      return res.status(400).json({ error: "code required", message: "缺少微信登录 code" });
+    }
+    if (!wechatAppId || !wechatAppSecret) {
+      console.error("[aura-backend] wechat-login: WECHAT_APP_ID or WECHAT_APP_SECRET is not set");
+      return res.status(500).json({
+        error: "wechat_config_missing",
+        message: "后端未配置微信 AppID / AppSecret，请联系管理员",
+      });
+    }
+
+    // Step 1: 调用微信 jscode2session
+    let wxData;
+    try {
+      const url =
+        "https://api.weixin.qq.com/sns/jscode2session" +
+        `?appid=${encodeURIComponent(wechatAppId)}` +
+        `&secret=${encodeURIComponent(wechatAppSecret)}` +
+        `&js_code=${encodeURIComponent(code)}` +
+        "&grant_type=authorization_code";
+      const wxRes = await fetch(url);
+      wxData = await wxRes.json();
+    } catch (fetchErr) {
+      console.error("[aura-backend] wechat-login: failed to call jscode2session:", fetchErr?.message || fetchErr);
+      return res.status(502).json({ error: "wechat_api_unreachable", message: "无法连接微信服务，请稍后再试" });
+    }
+
+    const openid = (wxData?.openid ?? "").toString().trim();
+    if (!openid) {
+      console.error("[aura-backend] wechat-login: no openid from WeChat, errcode=%s errmsg=%s", wxData?.errcode, wxData?.errmsg);
+      return res.status(400).json({
+        error: "wechat_login_failed",
+        message: `微信登录凭证无效（${wxData?.errcode ?? "unknown"}），请重试`,
+        detail: { errcode: wxData?.errcode, errmsg: wxData?.errmsg },
+      });
+    }
+
+    // Step 2: 写入数据库
+    const userId = await db.bindWeChatIdentity({ deviceId, openid, displayName, avatarUrl });
+    const profile = await db.getUserProfile(userId);
+    res.json({ ok: true, user_id: userId, profile });
+  } catch (err) {
+    console.error("[aura-backend] /api/auth/wechat-login unexpected error:", err?.message || err, err?.stack);
+    res.status(500).json({ error: "internal_error", message: "服务器内部错误，请稍后再试" });
+  }
+});
+
+app.get("/api/me", async (req, res) => {
+  const userId = await resolveUserId(req, res);
+  if (userId === null) return;
+  try {
+    const profile = await db.getUserProfile(userId);
+    res.json({ profile: profile || null });
+  } catch (err) {
+    console.error("[aura-backend] GET /api/me error:", err);
+    res.status(503).json({ error: "database_unavailable", message: "获取用户资料失败，请稍后再试" });
+  }
+});
+
+app.post("/api/me/profile", async (req, res) => {
+  const userId = await resolveUserId(req, res);
+  if (userId === null) return;
+  try {
+    await db.saveUserProfile(userId, req.body ?? {});
+    const profile = await db.getUserProfile(userId);
+    res.json({ ok: true, profile });
+  } catch (err) {
+    console.error("[aura-backend] POST /api/me/profile error:", err);
+    res.status(503).json({ error: "database_unavailable", message: "保存用户资料失败，请稍后再试" });
+  }
+});
+
+app.post("/api/upload/avatar", upload.single("file"), async (req, res) => {
+  const userId = await resolveUserId(req, res);
+  if (userId === null) return;
+  if (!req.file?.filename) {
+    return res.status(400).json({ error: "file required", message: "请上传头像文件" });
+  }
+  const fileUrl = `${req.protocol}://${req.get("host")}/uploads/${req.file.filename}`;
+  res.json({ ok: true, url: fileUrl });
 });
 
 app.post("/api/profile", async (req, res) => {
@@ -293,7 +443,7 @@ app.post("/api/chat", async (req, res) => {
     }
 
     const isBaziQuery = message.includes("[五行排盘]") || message.includes("五行排盘");
-    let system = isBaziQuery ? buildBaziSystemPrompt() : GENERAL_CHAT_SYSTEM_PROMPT;
+    let system = isBaziQuery ? await buildBaziSystemPrompt(message) : GENERAL_CHAT_SYSTEM_PROMPT;
     if (systemContext) {
       system = `${system}\n\n${systemContext}`;
     }

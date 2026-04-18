@@ -92,12 +92,8 @@ function goBack() {
 
 function askAura() {
   const ask = `我适合佩戴${crystal.name}吗？请结合我的状态给我一个温柔但专业的建议，并告诉我它更偏向什么能量。`;
-  uni.switchTab({
-    url: "/pages/index/index",
-    success() {
-      uni.setStorageSync("AURA_PENDING_ASK", ask);
-    },
-  });
+  uni.setStorageSync("AURA_PENDING_ASK", ask);
+  uni.switchTab({ url: "/pages/index/index" });
 }
 </script>
 

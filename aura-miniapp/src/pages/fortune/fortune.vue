@@ -93,7 +93,16 @@
 import { computed, onBeforeUnmount, ref, watch } from "vue";
 import tarotData from "@/utils/tarot-data.json";
 import { apiUrl } from "@/utils/api";
-import { onShow } from "@dcloudio/uni-app";
+import { onShow, onShareAppMessage, onShareTimeline } from "@dcloudio/uni-app";
+
+onShareAppMessage(() => ({
+  title: "Aura · 水晶疗愈与全息能量",
+  path: "pages/splash/splash",
+}));
+
+onShareTimeline(() => ({
+  title: "Aura · 水晶疗愈与全息能量",
+}));
 
 interface DailyEnergy {
   gregorian_date: string;
@@ -405,7 +414,14 @@ function fetchTarotInterpretation() {
     })
     .join("\n");
 
-  const userDailyElement = "火";
+  let userDailyElement = "未知";
+  try {
+    const baziRaw = uni.getStorageSync("baziResult");
+    if (baziRaw) {
+      const bazi = typeof baziRaw === "string" ? JSON.parse(baziRaw) : baziRaw;
+      if (bazi?.dominant) userDailyElement = bazi.dominant;
+    }
+  } catch { /* ignore */ }
 
   const payload = {
     messages: [
@@ -426,8 +442,21 @@ function fetchTarotInterpretation() {
     header: { "content-type": "application/json" },
     data: payload,
     timeout: 60000,
-    success: ({ data }) => {
-      const safeData = data || {};
+    success: (res) => {
+      if ((res.statusCode ?? 0) >= 400) {
+        console.warn("[fortune] /api/tarot-reading error, statusCode:", res.statusCode);
+        auraReadingText.value = "能量通道出现了一点波动，为你切换到本地解读。";
+        finalReading.value = sanitizeReadingText(auraReadingText.value || buildReadingText(drawnCards.value));
+        typewriterEffect(finalReading.value);
+        finalCrystal.value = {
+          name: localGuide.crystal.name || energyData.value.guardian_crystal.name,
+          reason: localGuide.crystal.reason || energyData.value.guardian_crystal.match_reason,
+        };
+        readingReady.value = true;
+        isLoadingReading.value = false;
+        return;
+      }
+      const safeData = (res.data as any) || {};
       const crystalName = (safeData?.crystal?.name ?? "").toString().trim();
       const crystalReason = (safeData?.crystal?.reason ?? "").toString().trim();
 
